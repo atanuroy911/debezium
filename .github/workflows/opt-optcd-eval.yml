@@ -1,0 +1,232 @@
+# Pushes to each pull request will trigger a cancellation of any existing push jobs for that pull request,
+# and will restart the build based on the latest push data for that specific pull request.
+# Checks that all commits contain sign-offs
+# Files that cannot affect the build. When a pull request touches only these,
+# the build chain below is skipped entirely. The bare *.md and *.txt patterns
+# match the repository root only; a globstar would be needed to recurse, so
+# text fixtures under a module's src/test/resources still trigger a build.
+# Approx 1m
+
+name: Modified Build Debezium (PR)
+env:
+  MAVEN_FULL_BUILD_PROJECTS: \!debezium-microbenchmark-oracle
+jobs:
+  file_changes:
+    name: file_changes
+    runs-on:
+    - self-hosted
+    - optcd
+    outputs:
+      ai-changed: ${{ steps.changed-files-ai.outputs.any_changed }}
+      openlineage-changed: ${{ steps.changed-files-openlineage.outputs.any_changed
+        }}
+      common-changed: ${{ steps.changed-files-common.outputs.any_changed }}
+      mongodb-changed: ${{ steps.changed-files-mongodb.outputs.any_changed }}
+      mariadb-changed: ${{ steps.changed-files-mariadb.outputs.any_changed }}
+      mysql-changed: ${{ steps.changed-files-mysql.outputs.any_changed }}
+      postgresql-changed: ${{ steps.changed-files-postgresql.outputs.any_changed }}
+      oracle-changed: ${{ steps.changed-files-oracle.outputs.any_changed }}
+      sqlserver-changed: ${{ steps.changed-files-sqlserver.outputs.any_changed }}
+      jdbc-changed: ${{ steps.changed-files-jdbc.outputs.any_changed }}
+      schema-generator-changed: ${{ steps.changed-files-schema-generator.outputs.any_changed
+        }}
+      debezium-testing-changed: ${{ steps.changed-files-debezium-testing.outputs.any_changed
+        }}
+      mysql-ddl-parser-changed: ${{ steps.changed-files-mysql-ddl-parser.outputs.any_changed
+        }}
+      oracle-ddl-parser-changed: ${{ steps.changed-files-oracle-ddl-parser.outputs.any_changed
+        }}
+      mariadb-ddl-parser-changed: ${{ steps.changed-files-mariadb-ddl-parser.outputs.any_changed
+        }}
+      non-code-only-changed: ${{ steps.changed-files-non-code.outputs.only_changed
+        }}
+    steps:
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |-
+        python -m pip install --upgrade pip
+        pip install inotify
+    - name: Run inotifywait
+      run: |-
+        python3 -c "
+        import inotify.adapters
+        import inotify.constants
+        import os
+        from datetime import datetime, timezone
+        with open('/home/runner/inotifywait-log-file_changes.csv', 'w') as log_file:
+          i = inotify.adapters.InotifyTree('/home/runner/work/debezium/debezium', inotify.constants.IN_CREATE | inotify.constants.IN_ACCESS)
+          for event in i.event_gen(yield_nones=False):
+            (_, type_names, path, filename) = event
+            now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
+            events = ','.join(type_names)
+            log_file.write(f'{now};{path};{filename};{events}\n')
+            log_file.flush()
+            os.fsync(log_file.fileno())
+        " &
+    - name: Checkout Action
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - run: touch optcd-3.txt
+    - name: Get modified files (Common)
+      id: changed-files-common
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          support/checkstyle/**
+          support/revapi/**
+          debezium-api/**
+          debezium-assembly-descriptors/**
+          debezium-connector-common/**
+          debezium-config/**
+          debezium-util/**
+          debezium-connect-plugins/**
+          debezium-embedded/**
+          debezium-parent/pom.xml
+          debezium-bom/pom.xml
+          debezium-storage/**
+          debezium-scripting/**
+          pom.xml
+          .mvn/**
+          .github/actions/**
+          .github/workflows/debezium-workflow-pr.yml
+          .github/workflows/connector-informix-workflow.yml
+          .github/workflows/apicurio-check-workflow.yml
+    - run: touch optcd-4.txt
+    - name: Get modified files (MongoDB)
+      id: changed-files-mongodb
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-sink/**
+          debezium-connector-mongodb/**
+          .github/workflows/connector-mongodb-workflow.yml
+    - run: touch optcd-5.txt
+    - name: Get modified files (MySQL)
+      id: changed-files-mysql
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-connector-mysql/**
+          debezium-connector-binlog/**
+          .github/workflows/connector-mysql-workflow.yml
+    - run: touch optcd-6.txt
+    - name: Get modified files (MariaDB)
+      id: changed-files-mariadb
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-connector-mariadb/**
+          debezium-connector-binlog/**
+          .github/workflows/connector-mariadb-workflow.yml
+    - run: touch optcd-7.txt
+    - name: Get modified files (PostgreSQL)
+      id: changed-files-postgresql
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-connector-postgres/**
+          .github/workflows/connector-postgresql-workflow.yml
+    - run: touch optcd-8.txt
+    - name: Get modified files (Oracle)
+      id: changed-files-oracle
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-connector-oracle/**
+          .github/workflows/connector-oracle-workflow.yml
+    - run: touch optcd-9.txt
+    - name: Get modified files (SQL Server)
+      id: changed-files-sqlserver
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-connector-sqlserver/**
+    - run: touch optcd-10.txt
+    - name: Get modified files (JDBC)
+      id: changed-files-jdbc
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-sink/**
+          debezium-connector-jdbc/**
+          .github/workflows/connector-jdbc-workflow.yml
+    - run: touch optcd-11.txt
+    - name: Get modified files (Schema Generator)
+      id: changed-files-schema-generator
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-schema-generator/**
+    - run: touch optcd-12.txt
+    - name: Get modified files (Debezium Testing)
+      id: changed-files-debezium-testing
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-testing/**
+    - run: touch optcd-13.txt
+    - name: Get modified files (MySQL DDL parser)
+      id: changed-files-mysql-ddl-parser
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-ddl-parser/src/main/antlr4/io/debezium/ddl/parser/mysql/**
+          debezium-ddl-parser/src/main/java/io/debezium/antlr/**
+          debezium-ddl-parser/src/test/resources/mysql/examples/**
+    - run: touch optcd-14.txt
+    - name: Get modified files (MariaDB DDL parser)
+      id: changed-files-mariadb-ddl-parser
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-ddl-parser/src/main/antlr4/io/debezium/ddl/parser/mariadb/**
+          debezium-ddl-parser/src/main/java/io/debezium/antlr/**
+          debezium-ddl-parser/src/test/resources/mariadb/examples/**
+    - run: touch optcd-15.txt
+    - name: Get modified files (Oracle DDL parser)
+      id: changed-files-oracle-ddl-parser
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-ddl-parser/src/main/antlr4/io/debezium/ddl/parser/oracle/**
+          debezium-ddl-parser/src/main/java/io/debezium/antlr/**
+          debezium-ddl-parser/src/main/java/io/debezium/ddl/parser/oracle/**
+          debezium-ddl-parser/src/test/resources/oracle/examples/**
+    - run: touch optcd-16.txt
+    - name: Get modified files (Documentation and project metadata)
+      id: changed-files-non-code
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          documentation/**
+          *.md
+          *.txt
+          jenkins-jobs/scripts/config/Aliases.txt
+          jenkins-jobs/scripts/config/FilteredNames.txt
+    - run: touch optcd-17.txt
+    - name: Get modified files (AI)
+      id: changed-files-ai
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-ai/**
+    - run: touch optcd-18.txt
+    - name: Get modified files (OpenLineage)
+      id: changed-files-openlineage
+      uses: tj-actions/changed-files@v47.0.6
+      with:
+        files: |-
+          debezium-openlineage/**
+    - run: touch optcd-19.txt
+    - name: Upload inotifywait logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: inotifywait-file_changes
+        path: /home/runner/inotifywait-log-file_changes.csv
+'on':
+- push
+- workflow_dispatch
